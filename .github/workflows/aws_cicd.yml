@@ -1,0 +1,35 @@
+# Sample workflow
+# The workflow Deploy CloudFormation
+name: AWS workflow
+on:
+  push:
+    branches:
+      - main
+env:
+  BUCKET_NAME : de-x5-lle-marios-espresso-pipeline-cafe-data
+  AWS_REGION : eu-west-1
+# permission can be added at job level or workflow level
+permissions:
+  id-token: write   # This is required for requesting the JWT
+  contents: read    # This is required for actions/checkout
+jobs:
+  build-and-deploy:
+    name: Deploy Python CloudFormation Stack to AWS
+    runs-on: ubuntu-latest
+    steps:
+      # checkout of the repository
+      - name: Git check the repository
+        uses: actions/checkout@v2
+      # using federated role for aws credentials
+      - name: Configure AWS credentials using federated role
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::476844305051:role/github-cicd-role
+          role-session-name: configurecredentialssession
+          aws-region: eu-west-1
+      # testing credentials
+      - name: List S3 buckets to test credentials
+        run: aws s3 ls
+      # deploy CloudFormation
+      - name: Deploy
+        run: ./deploy-from-github.sh

@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Template to deploy a lambda which is triggered by an S3 event.
+
+
+Resources:
+
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              - lambda.amazonaws.com
+          Action:
+            - sts:AssumeRole
+      Path: "/"
+      PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/ScopePermissions
+      Policies:
+      - PolicyName: LambdaLogsPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: '*'
+      - PolicyName: LamdaS3GetPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: s3:GetObject
+            Resource: arn:aws:s3:::de-x5-lle-marios-espresso-pipeline-cafe-data/*
+      - PolicyName: LambdaS3ListPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: s3:ListBucket
+            Resource: arn:aws:s3:::de-x5-lle-marios-espresso-pipeline-cafe-data
+      - PolicyName: LambdaGetParamaterPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+              - ssm:GetParameter
+            Resource: '*'
+
+
+
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.8
+      Handler: index.handler
+      Role: !GetAtt LambdaFunctionRole.Arn
+      Code:
+        ZipFile: |
+          import logging
+          LOGGER = logging.getLogger()
+          LOGGER.setLevel(logging.INFO)
+          def handler(event, context):
+            LOGGER.info(f'Event structure: {event}')
+
+
+  S3BucketPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaFunction
+      Principal: s3.amazonaws.com
+      SourceArn: arn:aws:s3:::de-x5-lle-marios-espresso-pipeline-cafe-data

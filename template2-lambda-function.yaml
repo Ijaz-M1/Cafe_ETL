@@ -1,0 +1,182 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Template to deploy a lambda function, which logs the lambda event.
+  Template to deploy an S3 bucket.
+
+Resources:
+
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              - lambda.amazonaws.com
+          Action:
+            - sts:AssumeRole
+      Path: "/"
+      PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/ScopePermissions
+      Policies:
+      - PolicyName: LambdaLogsPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: '*'
+      - PolicyName: LambdaS3Policy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource: arn:aws:s3:::de-x5-lle-marios-test-bucket
+      - PolicyName: LamdaS3GetPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: s3:GetObject
+            Resource: arn:aws:s3:::de-x5-lle-marios-test-bucket
+
+
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt LambdaFunctionRole.Arn
+      Code:
+        ZipFile: |
+          import logging
+          import boto3
+          import pandas as pd
+          import hashlib
+          import psycopg2
+          from io import StringIO
+
+          LOGGER = logging.getLogger()
+          LOGGER.setLevel(logging.INFO)
+
+          def generate_pseudo_random_id(value):
+              return hashlib.md5(str(value).encode()).hexdigest()
+
+          def load_data_into_redshift(df, redshift_params):
+              conn = psycopg2.connect(
+                  host=redshift_params['host'],
+                  port=redshift_params['port'],
+                  user=redshift_params['user'],
+                  password=redshift_params['password'],
+                  database=redshift_params['database']
+              )
+
+              cursor = conn.cursor()
+
+              # Create a temporary buffer to upload the DataFrame to Redshift
+              buffer = StringIO()
+              df.to_csv(buffer, index=False, header=False)
+              buffer.seek(0)
+
+              # Copy data from the buffer to the Redshift table
+              cursor.copy_from(buffer, redshift_params['table'], sep=',')
+
+              conn.commit()
+              cursor.close()
+              conn.close()
+
+          def handler(event, context):
+              LOGGER.info(f'Event structure: {event}')
+
+              # Get the S3 bucket and key from the event
+              bucket = event['Records'][0]['s3']['bucket']['name']
+              key = event['Records'][0]['s3']['object']['key']
+              local_file_path = f'/tmp/{key.split("/")[-1]}'  # path needs to be tmp/'filename.csv
+
+              # Use boto3 to download the S3 object to the /tmp directory
+              s3 = boto3.client('s3')
+              s3.download_file(bucket, key, local_file_path)
+
+              # Use pandas to read the CSV
+              df = pd.read_csv(local_file_path)
+
+              # Log the DataFrame head
+              LOGGER.info(f'DataFrame Head raw:\n{df.head()}')
+
+              # ETL logic
+              def order_price_cleaning(df):
+                  df['Order'] = df['Order'].str.split(",")
+                  df = df.explode('Order')
+                  df[['Product', 'Price']] = df['Order'].str.rsplit('-', n=1, expand=True)
+                  df[['Product_Name', 'Flavour']] = df['Product'].str.rsplit('-', n=1, expand=True)
+                  df[['Size','Product']] = df['Product'].str.split(n=1, expand=True)
+                  return df
+
+              df = order_price_cleaning(df)
+              df.drop(['Order'], axis=1, inplace=True)
+              df.drop(['CardNumber'], axis=1, inplace=True)
+
+              df['Product_id'] = df.apply(lambda row: generate_pseudo_random_id(str(row['Flavour']) + str(row['Size']) + str(row['Product']) + str(row['Price'])), axis=1)
+              df['Customer_id'] = df['Name'].apply(lambda _: generate_pseudo_random_id(_))
+              df['Order_id'] = df.apply(lambda row: generate_pseudo_random_id(str(row['DateTime']) + str(row['Location']) + str(row['Name'])), axis=1)
+              df['Branch_id'] = df.apply(lambda row: generate_pseudo_random_id(str(row['Location']) + str(row['DateTime'])), axis=1)
+
+              df.drop(['Name'], axis=1, inplace=True)
+
+              transformed_file_path = '/tmp/AWStransformed_data_with_ids.csv'
+              df.to_csv(transformed_file_path, index=False)
+
+              # Upload the modified DataFrame back to S3
+              transformed_key = key.replace('raw/', 'transformed/')  #  path needs adjusting
+              s3.upload_file(transformed_file_path, 'de-x5-lle-marios-espresso-pipeline-cafe-data', transformed_key)
+
+              # Log the head again after the transformation
+              LOGGER.info(f'DataFrame Head after Transformation:\n{df.head()}')
+
+              # Load the transformed data into Redshift
+              redshift_params = {
+                  'host': 'your-redshift-hostname',
+                  'port': 'your-redshift-port',
+                  'user': 'your-redshift-username',
+                  'password': 'your-redshift-password',
+                  'database': 'your-redshift-database',
+                  'table': 'your-redshift-table'
+              }
+              load_data_into_redshift(df, redshift_params)
+
+              LOGGER.info('ETL process completed successfully!')
+                    LOGGER = logging.getLogger()
+                    LOGGER.setLevel(logging.INFO)
+                    def handler(event, context):
+                      LOGGER.info(f'Event structure: {event}')
+
+  S3Bucket1:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: de-x5-lle-marios-test-bucket
+      # NotificationConfiguration:
+      #   LambdaConfigurations:
+      #     - Event: s3:ObjectCreated:*
+      #       Function: !GetAtt LambdaFunction.Arn
+
+
+  S3Bucket2:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: team3-target
+
+
+  S3BucketPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !GetAtt S3Bucket1.Arn

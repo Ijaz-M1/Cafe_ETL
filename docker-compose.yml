@@ -1,0 +1,24 @@
+version: '3.8'
+services:
+  db:
+    image: 'postgres'
+    container_name: postgres_container
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: 'password'
+      POSTGRES_USER: 'root'
+      POSTGRES_DB: 'test'
+    ports:
+      - "5432:5432"
+    volumes:
+      - my_db:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    container_name: adminer_container_mep
+    restart: always
+    ports:
+      - 8080:8080
+
+volumes:
+  my_db:

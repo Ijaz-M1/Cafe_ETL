@@ -10,7 +10,7 @@ This product is a fully scalable ETL pipeline hosted in AWS Cloud Services and h
 - Raw sales data from different branches are stored in an S3 bucket
 - Fully scalable ETL pipeline, cleaning and transforming raw sales data into a preferred format, ready for analysis
 - Using Grafana for data visualisation in order to generate reports for business analytics (insights and performance)
-- Ability to identify customer trends, allowing for targeted marketing for different groups of customers to enhace custoemrs'experience
+- Ability to identify customer trends, allowing for targeted marketing for different groups of customers to enhance customers'experience
 
 # Technical Architecture
 
@@ -23,7 +23,7 @@ Ensure you have the following prerequisites:
 
   1. AWS account with appropriate IAM roles.
   2. Redshift cluster created with the necessary tables (orders, branches, products, orders_details).
-  3. An S3 buckets created for deploying a CloudFormation stack and an S3 bucket for storing CSV file uploads.
+  3. An S3 bucket created for deploying a CloudFormation stack and an S3 bucket for storing CSV file uploads.
 
 ## S3 Bucket
 A deployment bucket is required to store a CloudFormation template file that is used to create a CloudFormation stack which specifies the following AWS resources required to build an ETL pipeline:
@@ -54,7 +54,7 @@ As CloudFormation provides infrastructure as code, an S3 trigger was specified i
 
 Other basic settings of our Lambda function, including Python runtime, are defined in the CloudFormation template.
 
-The necassary external dependencies packages required were also uploaded as a deployment package. The requirements needed are listed below and were uploaded as a zip package to the Lambda function (mopsycopg.zp):
+The necessary external dependencies packages required were also uploaded as a deployment package. The requirements needed are listed below and were uploaded as a zip package to the Lambda function (mopsycopg.zp):
 
 ```
 numpy==1.22.1
@@ -214,16 +214,16 @@ A common tool and critical process for new features and services deployment with
 
 Connect AWS and repository
 1) Search for 'github-cicd-role' in the roles tab of IAM.
-2) If the role exist, copy ARN and store in the secret section of GitHub repository.
-3) If role did not exist, create a 'github-cicd-role', copy ARN and store in the secret section of GitHub repository.
+2) If the role exists, copy ARN and store in the secret section of GitHub repository.
+3) If role does not exist, create a 'github-cicd-role', copy ARN and store in the secret section of GitHub repository.
 
 Deployment of CI/CD pipeline
-1) Copy 'aws_cicd.yml' for our repository or create your own teamplate to path of repository '.github/workflows'
-2) Create a template thats stores the services need to be implemented in ci/cd pipeline in ymal format , and save on repository.
+1) Copy 'aws_cicd.yml' for our repository or create your own template to path of repository '.github/workflows'
+2) Create a template that stores the services needed to be implemented in ci/cd pipeline in ymal format , and save on repository.
 3) Create a yaml template for configuration of services or applications with related role and permission, and save on repository.
 
-Operaiton of CI/CD pipeline
-1) As long as pipeline was triggered, the workflows automatically process with the sign in the repository.
+Operation of CI/CD pipeline
+1) As long as the pipeline was triggered, the workflows automatically process with the sign in the repository.
 2) If a tick appeared, the procedure was completed successfully.
 3) If a cross appeared, the procedure was not completed successfully.
 
